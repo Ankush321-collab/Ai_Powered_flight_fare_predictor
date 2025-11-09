@@ -5,3 +5,6 @@ textblob
 python-dotenv
 pandas
 schedule
+pytz
+selenium
+webdriver-manager
