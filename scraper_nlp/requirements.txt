@@ -1,0 +1,7 @@
+requests
+beautifulsoup4
+pymongo
+textblob
+python-dotenv
+pandas
+schedule
