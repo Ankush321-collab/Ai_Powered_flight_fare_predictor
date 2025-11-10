@@ -165,10 +165,11 @@ def search_flights(from_text, to_text, date_str, headless=False, wait_sec=20):
                 if angular_data:
                     import json
                     first_flight = angular_data[0]
+                    second_flight = angular_data[1] if len(angular_data) > 1 else None
                     
-                    # Save first flight to file for inspection
+                    # Save first TWO flights to file for inspection
                     with open('sample_flight_raw.json', 'w', encoding='utf-8') as f:
-                        json.dump(first_flight, f, indent=2, default=str)
+                        json.dump({'flight_0': first_flight, 'flight_1': second_flight}, f, indent=2, default=str)
                     logger.info(f"Saved raw flight data to sample_flight_raw.json")
                     
                     all_keys = list(first_flight.keys())
@@ -185,23 +186,49 @@ def search_flights(from_text, to_text, date_str, headless=False, wait_sec=20):
                         # Get first segment for main flight info
                         first_seg = segments[0] if segments else {}
                         
-                        # Extract airline and flight number from segment
-                        airline_names = first_seg.get('AN', [])
-                        if isinstance(airline_names, list) and airline_names:
-                            airline = airline_names[0]
-                        else:
-                            airline = str(airline_names) if airline_names else 'Unknown'
+                        # Extract airline and flight number from BkKY (booking key)
+                        # Format: "SG`  42` ``KTM`11/15/2025 11:20`DEL`11/15/2025 13:00``!0`U` `SG`USAV`5211..."
+                        booking_keys = first_seg.get('BkKY', [])
+                        airline = 'Unknown'
+                        flight_number = 'N/A'
+                        dept_time = 'N/A'
+                        arr_time = 'N/A'
+                        aircraft_type = 'N/A'
                         
-                        # Flight codes
-                        flight_codes = first_seg.get('AC', [])
-                        if isinstance(flight_codes, list) and flight_codes:
-                            flight_number = flight_codes[0]
-                        else:
-                            flight_number = str(flight_codes) if flight_codes else 'N/A'
-                        
-                        # Times from segment
-                        dept_time = first_seg.get('DT', 'N/A')
-                        arr_time = segments[-1].get('AT', 'N/A') if segments else 'N/A'  # Use last segment arrival
+                        if booking_keys and isinstance(booking_keys, list) and booking_keys[0]:
+                            bk_parts = booking_keys[0].split('`')
+                            if len(bk_parts) >= 20:
+                                # Index 0: Airline code (SG, 6E, AI, etc.)
+                                airline_code = bk_parts[0].strip() if bk_parts[0] else 'Unknown'
+                                # Index 1: Flight number
+                                flight_num = bk_parts[1].strip() if len(bk_parts) > 1 else 'N/A'
+                                # Index 4: Departure datetime "11/15/2025 11:20"
+                                dept_full = bk_parts[4].strip() if len(bk_parts) > 4 else ''
+                                # Index 6: Arrival datetime "11/15/2025 13:00"
+                                arr_full = bk_parts[6].strip() if len(bk_parts) > 6 else ''
+                                # Index 17: Aircraft type (around index 17-19)
+                                if len(bk_parts) > 17:
+                                    aircraft_type = bk_parts[17].strip() if bk_parts[17] and '!' not in bk_parts[17] else 'N/A'
+                                
+                                # Extract time from datetime string "11/15/2025 11:20"
+                                if dept_full and ' ' in dept_full:
+                                    parts = dept_full.split(' ')
+                                    dept_time = parts[-1] if parts else dept_full  # Get last part (time)
+                                if arr_full and ' ' in arr_full:
+                                    parts = arr_full.split(' ')
+                                    arr_time = parts[-1] if parts else arr_full
+                                
+                                # Map airline codes to names
+                                airline_map = {
+                                    'SG': 'SpiceJet', '6E': 'IndiGo', 'AI': 'Air India',
+                                    'UK': 'Vistara', 'G8': 'Go First', 'I5': 'Air Asia India',
+                                    'QP': 'Akasa Air', 'IX': 'Air India Express', 'RA': 'Nepal Airlines'
+                                }
+                                airline = airline_map.get(airline_code, airline_code)
+                                
+                                # Only set flight number if we have valid data
+                                if flight_num and flight_num != 'N/A' and airline_code and airline_code != 'Unknown':
+                                    flight_number = f"{airline_code}-{flight_num}"
                         
                         # Duration from flight object
                         total_journey_time = flight.get('TJT', flight.get('TT', {}))
@@ -246,7 +273,11 @@ def search_flights(from_text, to_text, date_str, headless=False, wait_sec=20):
                         continue
                 
                 if results:
-                    logger.info(f"Successfully extracted {len(results)} flights from Angular! Cheapest: ₹{min(f['price'] for f in results):.0f}")
+                    # Sort by price (cheapest first)
+                    results.sort(key=lambda x: x['price'])
+                    cheapest = results[0]
+                    logger.info(f"Successfully extracted {len(results)} flights from Angular!")
+                    logger.info(f"Cheapest: {cheapest['airline']} {cheapest['flight_number']} - ₹{cheapest['price']:.0f}")
                     return results
                 else:
                     logger.warning("No valid flights found in Angular data, falling back to HTML parsing")

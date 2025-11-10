@@ -15,6 +15,7 @@ connectDB();
 app.use('/api/flights', require('./routes/flightRoutes'));
 app.use('/api/reviews', require('./routes/reviewRoutes'));
 app.use('/api/insights', require('./routes/insightRoutes'));
+app.use('/api/ml', require('./routes/mlRoutes'));
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
