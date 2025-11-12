@@ -1,0 +1,22 @@
+node_modules/
+.env
+.DS_Store
+__pycache__/
+.venv/
+coverage/
+
+dist/
+build/
+
+# Data folders
+
+ml/data/
+scraper_nlp/data/
+backend/data/
+data/
+
+ml/models/fare_prediction_model.pkl
+ml/models/feature_mappings.pkl
+ml/models/model_metadata.pkl
+
+
